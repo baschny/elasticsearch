@@ -60,6 +60,32 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 return new StringTermsAggregator.WithOrdinals(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
             }
 
+        },
+        GLOBAL_ORDINALS(new ParseField("global_ordinals_direct")) {
+
+            @Override
+            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
+                              InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
+                              AggregationContext aggregationContext, Aggregator parent) {
+                if (includeExclude != null) {
+                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
+                }
+                return new GlobalOrdinalsStringTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+            }
+
+        },
+        GLOBAL_ORDINALS_HASH(new ParseField("global_ordinals_hash")) {
+
+            @Override
+            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
+                              InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
+                              AggregationContext aggregationContext, Aggregator parent) {
+                if (includeExclude != null) {
+                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
+                }
+                return new GlobalOrdinalsStringTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+            }
+
         };
 
         public static ExecutionMode fromString(String value) {
@@ -191,6 +217,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 }
             }
             assert execution != null;
+            if (execution == ExecutionMode.GLOBAL_ORDINALS || execution == ExecutionMode.GLOBAL_ORDINALS_HASH) {
+                valuesSource.setNeedsGlobalOrdinals(true);
+            }
 
             return execution.create(name, factories, valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
         }

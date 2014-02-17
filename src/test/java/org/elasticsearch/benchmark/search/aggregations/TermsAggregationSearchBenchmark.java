@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.benchmark.search.aggregations;
 
+import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
 import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -30,11 +32,15 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 
 import java.util.List;
@@ -60,13 +66,14 @@ public class TermsAggregationSearchBenchmark {
     static int BATCH = 1000;
     static int QUERY_WARMUP = 10;
     static int QUERY_COUNT = 100;
-    static int NUMBER_OF_TERMS = 200;
+    static int NUMBER_OF_TERMS = (int) SizeValue.parseSizeValue("100k").singles();
     static int NUMBER_OF_MULTI_VALUE_TERMS = 10;
     static int STRING_TERM_SIZE = 5;
 
     static Client client;
+    static InternalNode[] nodes;
 
-    private enum Method {
+    public enum Method {
         FACET {
             @Override
             SearchRequestBuilder addTermsAgg(SearchRequestBuilder builder, String name, String field, String executionHint) {
@@ -94,6 +101,7 @@ public class TermsAggregationSearchBenchmark {
     }
 
     public static void main(String[] args) throws Exception {
+        Natives.tryMlockall();
         Random random = new Random();
 
         Settings settings = settingsBuilder()
@@ -104,9 +112,9 @@ public class TermsAggregationSearchBenchmark {
                 .build();
 
         String clusterName = TermsAggregationSearchBenchmark.class.getSimpleName();
-        Node[] nodes = new Node[1];
+        nodes = new InternalNode[1];
         for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = nodeBuilder().clusterName(clusterName)
+            nodes[i] = (InternalNode) nodeBuilder().clusterName(clusterName)
                     .settings(settingsBuilder().put(settings).put("name", "node" + i))
                     .node();
         }
@@ -116,15 +124,6 @@ public class TermsAggregationSearchBenchmark {
                 .settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
 
         client = clientNode.client();
-
-        long[] lValues = new long[NUMBER_OF_TERMS];
-        for (int i = 0; i < NUMBER_OF_TERMS; i++) {
-            lValues[i] = ThreadLocalRandom.current().nextLong();
-        }
-        String[] sValues = new String[NUMBER_OF_TERMS];
-        for (int i = 0; i < NUMBER_OF_TERMS; i++) {
-            sValues[i] = RandomStrings.randomAsciiOfLength(random, STRING_TERM_SIZE);
-        }
 
         Thread.sleep(10000);
         try {
@@ -163,6 +162,20 @@ public class TermsAggregationSearchBenchmark {
                   .endObject()
                 .endObject()
               .endObject())).actionGet();
+
+            long[] lValues = new long[NUMBER_OF_TERMS];
+            for (int i = 0; i < NUMBER_OF_TERMS; i++) {
+                lValues[i] = ThreadLocalRandom.current().nextLong();
+            }
+            ObjectOpenHashSet<String> uniqueTerms = ObjectOpenHashSet.newInstance();
+            for (int i = 0; i < NUMBER_OF_TERMS; i++) {
+                boolean added;
+                do {
+                    added = uniqueTerms.add(RandomStrings.randomAsciiOfLength(random, STRING_TERM_SIZE));
+                } while (!added);
+            }
+            String[] sValues = uniqueTerms.toArray(String.class);
+            uniqueTerms = null;
 
             StopWatch stopWatch = new StopWatch().start();
 
@@ -233,7 +246,11 @@ public class TermsAggregationSearchBenchmark {
         stats.add(terms("terms_facet_map_s", Method.FACET, "s_value", "map"));
         stats.add(terms("terms_facet_map_s_dv", Method.FACET, "s_value_dv", "map"));
         stats.add(terms("terms_agg_s", Method.AGGREGATION, "s_value", null));
+        stats.add(terms("terms_agg_s_global_ords_hash", Method.AGGREGATION, "s_value", "global_ordinals_hash"));
+        stats.add(terms("terms_agg_s_global_ords_direct", Method.AGGREGATION, "s_value", "global_ordinals_direct"));
         stats.add(terms("terms_agg_s_dv", Method.AGGREGATION, "s_value_dv", null));
+        stats.add(terms("terms_agg_s_dv_global_ords_hash", Method.AGGREGATION, "s_value_dv", "global_ordinals_hash"));
+        stats.add(terms("terms_agg_s_dv_global_ords_direct", Method.AGGREGATION, "s_value_dv", "global_ordinals_direct"));
         stats.add(terms("terms_agg_map_s", Method.AGGREGATION, "s_value", "map"));
         stats.add(terms("terms_agg_map_s_dv", Method.AGGREGATION, "s_value_dv", "map"));
         stats.add(terms("terms_facet_l", Method.FACET, "l_value", null));
@@ -245,7 +262,11 @@ public class TermsAggregationSearchBenchmark {
         stats.add(terms("terms_facet_map_sm", Method.FACET, "sm_value", "map"));
         stats.add(terms("terms_facet_map_sm_dv", Method.FACET, "sm_value_dv", "map"));
         stats.add(terms("terms_agg_sm", Method.AGGREGATION, "sm_value", null));
+        stats.add(terms("terms_agg_sm_global_ords_hash", Method.AGGREGATION, "sm_value", "global_ordinals_hash"));
+        stats.add(terms("terms_agg_sm_global_ords_direct", Method.AGGREGATION, "sm_value", "global_ordinals_direct"));
         stats.add(terms("terms_agg_sm_dv", Method.AGGREGATION, "sm_value_dv", null));
+        stats.add(terms("terms_agg_sm_dv_global_ords_hash", Method.AGGREGATION, "sm_value_dv", "global_ordinals_hash"));
+        stats.add(terms("terms_agg_sm_global_ords_direct", Method.AGGREGATION, "sm_value_dv", "global_ordinals_direct"));
         stats.add(terms("terms_agg_map_sm", Method.AGGREGATION, "sm_value", "map"));
         stats.add(terms("terms_agg_map_sm_dv", Method.AGGREGATION, "sm_value_dv", "map"));
         stats.add(terms("terms_facet_lm", Method.FACET, "lm_value", null));
@@ -266,12 +287,25 @@ public class TermsAggregationSearchBenchmark {
         stats.add(termsStats("terms_stats_agg_sm_l", Method.AGGREGATION, "sm_value", "l_value", null));
         stats.add(termsStats("terms_stats_agg_sm_l_dv", Method.AGGREGATION, "sm_value_dv", "l_value_dv", null));
 
-        System.out.println("------------------ SUMMARY -------------------------------");
-        System.out.format(Locale.ENGLISH, "%25s%10s%10s\n", "name", "took", "millis");
+        stats.add(termsStats("terms_stats_facet_s_l", Method.FACET, "s_value", "l_value", null));
+        stats.add(termsStats("terms_stats_facet_s_l_dv", Method.FACET, "s_value_dv", "l_value_dv", null));
+        stats.add(termsStats("terms_stats_agg_s_l", Method.AGGREGATION, "s_value", "l_value", null));
+        stats.add(termsStats("terms_stats_agg_s_l_dv", Method.AGGREGATION, "s_value_dv", "l_value_dv", null));
+        stats.add(termsStats("terms_stats_facet_s_lm", Method.FACET, "s_value", "lm_value", null));
+        stats.add(termsStats("terms_stats_facet_s_lm_dv", Method.FACET, "s_value_dv", "lm_value_dv", null));
+        stats.add(termsStats("terms_stats_agg_s_lm", Method.AGGREGATION, "s_value", "lm_value", null));
+        stats.add(termsStats("terms_stats_agg_s_lm_dv", Method.AGGREGATION, "s_value_dv", "lm_value_dv", null));
+        stats.add(termsStats("terms_stats_facet_sm_l", Method.FACET, "sm_value", "l_value", null));
+        stats.add(termsStats("terms_stats_facet_sm_l_dv", Method.FACET, "sm_value_dv", "l_value_dv", null));
+        stats.add(termsStats("terms_stats_agg_sm_l", Method.AGGREGATION, "sm_value", "l_value", null));
+        stats.add(termsStats("terms_stats_agg_sm_l_dv", Method.AGGREGATION, "sm_value_dv", "l_value_dv", null));
+        
+        System.out.println("------------------ SUMMARY ----------------------------------------------");
+        System.out.format(Locale.ENGLISH, "%35s%10s%10s%15s\n", "name", "took", "millis", "fieldata size");
         for (StatsResult stat : stats) {
-            System.out.format(Locale.ENGLISH, "%25s%10s%10d\n", stat.name, TimeValue.timeValueMillis(stat.took), (stat.took / QUERY_COUNT));
+            System.out.format(Locale.ENGLISH, "%35s%10s%10d%15s\n", stat.name, TimeValue.timeValueMillis(stat.took), (stat.took / QUERY_COUNT), stat.fieldDataMemoryUsed);
         }
-        System.out.println("------------------ SUMMARY -------------------------------");
+        System.out.println("------------------ SUMMARY ----------------------------------------------");
 
         clientNode.close();
 
@@ -280,13 +314,15 @@ public class TermsAggregationSearchBenchmark {
         }
     }
 
-    static class StatsResult {
+    public static class StatsResult {
         final String name;
         final long took;
+        final ByteSizeValue fieldDataMemoryUsed;
 
-        StatsResult(String name, long took) {
+        public StatsResult(String name, long took, ByteSizeValue fieldDataMemoryUsed) {
             this.name = name;
             this.took = took;
+            this.fieldDataMemoryUsed = fieldDataMemoryUsed;
         }
     }
 
@@ -294,11 +330,12 @@ public class TermsAggregationSearchBenchmark {
         long totalQueryTime;// LM VALUE
 
         client.admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
+        System.gc();
 
         System.out.println("--> Warmup (" + name + ")...");
         // run just the child query, warm up first
         for (int j = 0; j < QUERY_WARMUP; j++) {
-            SearchResponse searchResponse = method.addTermsAgg(client.prepareSearch()
+            SearchResponse searchResponse = method.addTermsAgg(client.prepareSearch("test")
                     .setSearchType(SearchType.COUNT)
                     .setQuery(matchAllQuery()), name, field, executionHint)
                     .execute().actionGet();
@@ -325,13 +362,25 @@ public class TermsAggregationSearchBenchmark {
             totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("--> Terms Agg (" + name + "): " + (totalQueryTime / QUERY_COUNT) + "ms");
-        return new StatsResult(name, totalQueryTime);
+
+        String[] nodeIds = new String[nodes.length];
+        for (int i = 0; i < nodeIds.length; i++) {
+            nodeIds[i] = nodes[i].injector().getInstance(Discovery.class).localNode().getId();
+        }
+
+        ClusterStatsResponse clusterStateResponse = client.admin().cluster().prepareClusterStats().setNodesIds(nodeIds).get();
+        System.out.println("--> Heap used: " + clusterStateResponse.getNodesStats().getJvm().getHeapUsed());
+        ByteSizeValue fieldDataMemoryUsed = clusterStateResponse.getIndicesStats().getFieldData().getMemorySize();
+        System.out.println("--> Fielddata memory size: " + fieldDataMemoryUsed);
+
+        return new StatsResult(name, totalQueryTime, fieldDataMemoryUsed);
     }
 
     private static StatsResult termsStats(String name, Method method, String keyField, String valueField, String executionHint) {
         long totalQueryTime;
 
         client.admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
+        System.gc();
 
         System.out.println("--> Warmup (" + name + ")...");
         // run just the child query, warm up first
@@ -363,6 +412,6 @@ public class TermsAggregationSearchBenchmark {
             totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("--> Terms stats agg (" + name + "): " + (totalQueryTime / QUERY_COUNT) + "ms");
-        return new StatsResult(name, totalQueryTime);
+        return new StatsResult(name, totalQueryTime, ByteSizeValue.parseBytesSizeValue("0b"));
     }
 }

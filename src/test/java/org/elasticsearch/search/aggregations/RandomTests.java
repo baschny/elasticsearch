@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.RangeFilterBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -157,6 +158,9 @@ public class RandomTests extends ElasticsearchIntegrationTest {
                   .startObject("string_values")
                     .field("type", "string")
                     .field("index", "not_analyzed")
+                    .startObject("fielddata")
+                        .field(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_KEY, randomIntBetween(1, maxNumTerms))
+                    .endObject()
                   .endObject()
                   .startObject("long_values")
                     .field("type", "long")
@@ -196,11 +200,19 @@ public class RandomTests extends ElasticsearchIntegrationTest {
 
         assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenient()).execute().get());
 
+        TermsAggregatorFactory.ExecutionMode[] globalOrdinalModes = new TermsAggregatorFactory.ExecutionMode[]{
+                TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS,
+                TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS_HASH,
+                TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS
+        };
+
         SearchResponse resp = client().prepareSearch("idx")
                 .addAggregation(terms("long").field("long_values").size(maxNumTerms).subAggregation(min("min").field("num")))
                 .addAggregation(terms("double").field("double_values").size(maxNumTerms).subAggregation(max("max").field("num")))
                 .addAggregation(terms("string_map").field("string_values").executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString()).size(maxNumTerms).subAggregation(stats("stats").field("num")))
-                .addAggregation(terms("string_ordinals").field("string_values").executionHint(TermsAggregatorFactory.ExecutionMode.ORDINALS.toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num"))).execute().actionGet();
+                .addAggregation(terms("string_ordinals").field("string_values").executionHint(TermsAggregatorFactory.ExecutionMode.ORDINALS.toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
+                .addAggregation(terms("string_global_ordinals").field("string_values").executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
+                .execute().actionGet();
         assertAllSuccessful(resp);
         assertEquals(numDocs, resp.getHits().getTotalHits());
 
