@@ -129,7 +129,7 @@ field data format.
 
 coming[1.2.0]
 
-Global ordinals is a data-structure on top of field data, that maintains a
+Global ordinals is a data-structure on top of field data, that maintains an
 incremental numbering for all the terms in field data in a lexicographic order.
 Each term has a unique number and the number of term 'A' is lower than the number
 of term 'B'. Global ordinals are only supported on string fields.
@@ -143,11 +143,11 @@ Global ordinals can be beneficial in search features such as the terms aggregato
 to improve the execution time. Search features can instead of using the actual
 terms, can use these unique numbers which improves the performance.
 
-Global ordinals are build based on the field data entries for each segment
+Global ordinals are built based on the field data entries for each segment
 on a shard. So per field and per shard there is one global ordinal instance.
 Unlike field data global ordinals need to rebuild in its entirety, once new segments
 become visible during a refresh. Building or rebuilding global ordinals is relatively
-cheap, since its source, field data is in memory all ready.
+cheap, since its source, field data is already loaded.
 
 [float]
 === Fielddata loading
