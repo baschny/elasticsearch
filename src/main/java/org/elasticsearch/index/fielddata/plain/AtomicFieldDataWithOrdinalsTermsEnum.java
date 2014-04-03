@@ -72,7 +72,11 @@ public class AtomicFieldDataWithOrdinalsTermsEnum extends TermsEnum {
     public void seekExact(long ord) throws IOException {
         assert ord >= 0 && ord < ordinals.getMaxOrd();
         currentOrd = ord;
-        currentTerm = bytesValues.getValueByOrd(currentOrd);
+        if (currentOrd == Ordinals.MISSING_ORDINAL) {
+            currentTerm = null;
+        } else {
+            currentTerm = bytesValues.getValueByOrd(currentOrd);
+        }
     }
 
     @Override

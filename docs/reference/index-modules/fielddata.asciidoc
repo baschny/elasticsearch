@@ -139,15 +139,25 @@ in a particular segment and field. Global ordinals just build on top of this,
 by providing a mapping between the segment ordinals and the global ordinals.
 The latter being unique across the entire shard.
 
-Global ordinals can be beneficial in search features such as the terms aggregator
-to improve the execution time. Search features can instead of using the actual
-terms, can use these unique numbers which improves the performance.
+Global ordinals can be beneficial in search features that use segment ordinals already
+such as the terms aggregator to improve the execution time. Often these search features
+need to need to merge the segment ordinal results to a cross segment terms result. With
+global ordinals this mapping happens during field data load time instead of during each
+query execution. With global ordinals search features only need to resolve the actual
+term when building the (shard) response, but during the execution there is no need
+at all to use the actual terms and the unique numbering global ordinals provided is
+sufficient and improves the execution time.
 
-Global ordinals are built based on the field data entries for each segment
-on a shard. So per field and per shard there is one global ordinal instance.
-Unlike field data global ordinals need to rebuild in its entirety, once new segments
-become visible during a refresh. Building or rebuilding global ordinals is relatively
-cheap, since its source, field data is already loaded.
+Global ordinals for a specified field are tied to all the segments of a shard (Lucene index),
+which is different than for field data for a specific field which is tied to a single segment.
+For this reason global ordinals need to be rebuild in its entirety once new segments
+become visible. This one time cost would happen anyway without global ordinals, but
+then it would happen for each search execution instead!
+
+The loading time of global ordinals depends on the number of terms in a field, but in general
+it is low, since it source field data has already been loaded. The memory overhead of global
+ordinals is a small because it is very efficiently compressed. Eager loading of global ordinals
+can move the loading time from the first search request, to the refresh itself.
 
 [float]
 === Fielddata loading

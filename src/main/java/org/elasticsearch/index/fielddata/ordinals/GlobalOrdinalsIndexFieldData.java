@@ -93,15 +93,17 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
 
     @Override
     public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
-        return null;
+        throw new UnsupportedOperationException("no global ordinals sorting yet");
     }
 
     @Override
     public void clear() {
+        // no need to clear, because this is cached and cleared in AbstractBytesIndexFieldData
     }
 
     @Override
     public void clear(IndexReader reader) {
+        // no need to clear, because this is cached and cleared in AbstractBytesIndexFieldData
     }
 
     @Override
@@ -160,7 +162,7 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
 
         @Override
         public boolean isValuesOrdered() {
-            return false;
+            return afd.isValuesOrdered();
         }
 
         @Override
@@ -184,7 +186,7 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
         }
 
         @Override
-        public TermsEnum termsEnum() {
+        public TermsEnum getTermsEnum() {
             return new AtomicFieldDataWithOrdinalsTermsEnum(this);
         }
 

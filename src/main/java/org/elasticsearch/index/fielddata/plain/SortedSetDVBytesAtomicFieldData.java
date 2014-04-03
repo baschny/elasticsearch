@@ -49,7 +49,7 @@ public final class SortedSetDVBytesAtomicFieldData extends SortedSetDVAtomicFiel
     }
 
     @Override
-    public TermsEnum termsEnum() {
+    public TermsEnum getTermsEnum() {
         return new AtomicFieldDataWithOrdinalsTermsEnum(this);
     }
 }

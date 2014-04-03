@@ -79,7 +79,7 @@ public interface AtomicFieldData<Script extends ScriptDocValues> extends RamUsag
         /**
          * Returns a terms enum to iterate over all the underlying values.
          */
-        TermsEnum termsEnum();
+        TermsEnum getTermsEnum();
 
     }
 

@@ -122,7 +122,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     }
 
     @Override
-    public TermsEnum termsEnum() {
+    public TermsEnum getTermsEnum() {
         return new AtomicFieldDataWithOrdinalsTermsEnum(this);
     }
 

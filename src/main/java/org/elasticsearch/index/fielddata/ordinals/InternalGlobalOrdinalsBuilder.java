@@ -19,16 +19,14 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import com.carrotsearch.hppc.IntArrayList;
-import com.carrotsearch.hppc.cursors.IntCursor;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.LongsRef;
+import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.packed.AppendingPackedLongBuffer;
-import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.settings.Settings;
@@ -49,7 +47,8 @@ import java.util.List;
  */
 public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implements GlobalOrdinalsBuilder {
 
-    public final static String ORDINAL_MAPPING_THRESHOLD_KEY = "threshold";
+    public final static int ORDINAL_MAPPING_THRESHOLD_DEFAULT = 2048;
+    public final static String ORDINAL_MAPPING_THRESHOLD_KEY = "global_ordinals_compress_threshold";
 
     public InternalGlobalOrdinalsBuilder(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
@@ -70,7 +69,7 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
         globalOrdToFirstSegmentDelta.add(0);
 
         FieldDataType fieldDataType = indexFieldData.getFieldDataType();
-        int threshold = fieldDataType.getSettings().getAsInt(ORDINAL_MAPPING_THRESHOLD_KEY, 2048);
+        int threshold = fieldDataType.getSettings().getAsInt(ORDINAL_MAPPING_THRESHOLD_KEY, ORDINAL_MAPPING_THRESHOLD_DEFAULT);
         OrdinalMappingSourceBuilder ordinalMappingBuilder = new OrdinalMappingSourceBuilder(
                 indexReader.leaves().size(), acceptableOverheadRatio, threshold
         );
@@ -261,9 +260,9 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
 
             if (maxOrd <= threshold) {
                 // Rebuilding from MonotonicAppendingLongBuffer to GrowableWriter is fast
-                GrowableWriter[] newSegmentOrdToGlobalOrdDeltas = new GrowableWriter[numSegments];
+                PackedInts.Mutable[] newSegmentOrdToGlobalOrdDeltas = new PackedInts.Mutable[numSegments];
                 for (int i = 0; i < segmentOrdToGlobalOrdDeltas.length; i++) {
-                    newSegmentOrdToGlobalOrdDeltas[i] = new GrowableWriter(1, (int) segmentOrdToGlobalOrdDeltas[i].size(), acceptableOverheadRatio);
+                    newSegmentOrdToGlobalOrdDeltas[i] = PackedInts.getMutable((int) segmentOrdToGlobalOrdDeltas[i].size(), (int) maxOrd, acceptableOverheadRatio);
                 }
 
                 for (int readerIndex = 0; readerIndex < segmentOrdToGlobalOrdDeltas.length; readerIndex++) {
@@ -277,7 +276,7 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
 
                 PackedIntOrdinalMappingSource[] sources = new PackedIntOrdinalMappingSource[numSegments];
                 for (int i = 0; i < newSegmentOrdToGlobalOrdDeltas.length; i++) {
-                    PackedInts.Reader segmentOrdToGlobalOrdDelta = newSegmentOrdToGlobalOrdDeltas[i].getMutable();
+                    PackedInts.Reader segmentOrdToGlobalOrdDelta = newSegmentOrdToGlobalOrdDeltas[i];
                     long ramUsed = segmentOrdToGlobalOrdDelta.ramBytesUsed();
                     sources[i] = new PackedIntOrdinalMappingSource(segmentOrdToGlobalOrdDelta, ramUsed, maxOrd);
                     memorySizeInBytesCounter += ramUsed;
@@ -371,68 +370,38 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
 
     private final static class TermIterator implements BytesRefIterator {
 
-        private final List<LeafSource> leafSources;
-
-        private final IntArrayList sourceSlots;
-        private final IntArrayList competitiveSlots;
-        private BytesRef currentTerm;
+        private final LeafSourceQueue sources;
+        private final List<LeafSource> competitiveLeafs = new ArrayList<>();
 
         private TermIterator(IndexFieldData.WithOrdinals indexFieldData, List<AtomicReaderContext> leaves, AtomicFieldData.WithOrdinals[] withOrdinals) throws IOException {
-            this.leafSources = new ArrayList<>(leaves.size());
-            this.sourceSlots = IntArrayList.newInstanceWithCapacity(leaves.size());
-            this.competitiveSlots = IntArrayList.newInstanceWithCapacity(leaves.size());
+            this.sources = new LeafSourceQueue(leaves.size());
             for (int i = 0; i < leaves.size(); i++) {
-                AtomicReaderContext leaf = leaves.get(i);
-                AtomicFieldData.WithOrdinals afd = indexFieldData.load(leaf);
+                AtomicReaderContext atomicReaderContext = leaves.get(i);
+                AtomicFieldData.WithOrdinals afd = indexFieldData.load(atomicReaderContext);
                 withOrdinals[i] = afd;
-                leafSources.add(new LeafSource(afd, leaf));
+                LeafSource leafSource = new LeafSource(afd, atomicReaderContext);
+                if (leafSource.current != null) {
+                    sources.add(leafSource);
+                }
             }
         }
 
         public BytesRef next() throws IOException {
-            if (currentTerm == null) {
-                for (int slot = 0; slot < leafSources.size(); slot++) {
-                    LeafSource leafSource = leafSources.get(slot);
-                    if (leafSource.next() != null) {
-                        sourceSlots.add(slot);
-                    }
+            for (LeafSource top : competitiveLeafs) {
+                if (top.next() != null) {
+                    sources.add(top);
                 }
             }
-            if (sourceSlots.isEmpty()) {
+            competitiveLeafs.clear();
+            if (sources.size() == 0) {
                 return null;
             }
 
-            if (!competitiveSlots.isEmpty()) {
-                for (IntCursor cursor : competitiveSlots) {
-                    if (leafSources.get(cursor.value).next() == null) {
-                        sourceSlots.removeFirstOccurrence(cursor.value);
-                    }
-                }
-                competitiveSlots.clear();
-            }
-            BytesRef lowest = null;
-            for (IntCursor cursor : sourceSlots) {
-                LeafSource leafSource = leafSources.get(cursor.value);
-                if (lowest == null) {
-                    lowest = leafSource.tenum.term();
-                    competitiveSlots.add(cursor.value);
-                } else {
-                    int cmp = lowest.compareTo(leafSource.tenum.term());
-                    if (cmp == 0) {
-                        competitiveSlots.add(cursor.value);
-                    } else if (cmp > 0) {
-                        competitiveSlots.clear();
-                        lowest = leafSource.tenum.term();
-                        competitiveSlots.add(cursor.value);
-                    }
-                }
-            }
-
-            if (competitiveSlots.isEmpty()) {
-                return currentTerm = null;
-            } else {
-                return currentTerm = lowest;
-            }
+            do {
+                LeafSource competitiveLeaf = sources.pop();
+                competitiveLeafs.add(competitiveLeaf);
+            } while (sources.size() > 0 && competitiveLeafs.get(0).current.equals(sources.top().current));
+            return competitiveLeafs.get(0).current;
         }
 
         @Override
@@ -441,22 +410,15 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
         }
 
         List<LeafSource> competitiveLeafs() throws IOException {
-            List<LeafSource> docsEnums = new ArrayList<>(competitiveSlots.size());
-            for (IntCursor cursor : competitiveSlots) {
-                LeafSource leafSource = leafSources.get(cursor.value);
-                docsEnums.add(leafSource);
-            }
-            return docsEnums;
+            return competitiveLeafs;
         }
 
         int firstReaderIndex() {
-            int slot = competitiveSlots.get(0);
-            return leafSources.get(slot).context.ord;
+            return competitiveLeafs.get(0).context.ord;
         }
 
         long firstLocalOrdinal() throws IOException {
-            int slot = competitiveSlots.get(0);
-            return leafSources.get(slot).tenum.ord();
+            return competitiveLeafs.get(0).tenum.ord();
         }
 
         private static class LeafSource {
@@ -464,15 +426,37 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
             final TermsEnum tenum;
             final AtomicReaderContext context;
 
+            BytesRef current;
+
             private LeafSource(AtomicFieldData.WithOrdinals afd, AtomicReaderContext context) throws IOException {
-                this.tenum = afd.termsEnum();
+                this.tenum = afd.getTermsEnum();
                 this.context = context;
+                this.current = tenum.next();
             }
 
             BytesRef next() throws IOException {
-                return tenum.next();
+                return current = tenum.next();
             }
 
+        }
+
+        private final static class LeafSourceQueue extends PriorityQueue<LeafSource> {
+
+            private final Comparator<BytesRef> termComp = BytesRef.getUTF8SortedAsUnicodeComparator();
+
+            LeafSourceQueue(int size) {
+                super(size);
+            }
+
+            @Override
+            protected boolean lessThan(LeafSource termsA, LeafSource termsB) {
+                final int cmp = termComp.compare(termsA.current, termsB.current);
+                if (cmp != 0) {
+                    return cmp < 0;
+                } else {
+                    return termsA.context.ord < termsB.context.ord;
+                }
+            }
         }
 
     }

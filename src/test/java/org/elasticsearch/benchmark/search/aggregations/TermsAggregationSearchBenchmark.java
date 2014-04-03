@@ -66,7 +66,7 @@ public class TermsAggregationSearchBenchmark {
     static int BATCH = 1000;
     static int QUERY_WARMUP = 10;
     static int QUERY_COUNT = 100;
-    static int NUMBER_OF_TERMS = (int) SizeValue.parseSizeValue("100k").singles();
+    static int NUMBER_OF_TERMS = 200;
     static int NUMBER_OF_MULTI_VALUE_TERMS = 10;
     static int STRING_TERM_SIZE = 5;
 
@@ -190,8 +190,8 @@ public class TermsAggregationSearchBenchmark {
 
                     XContentBuilder builder = jsonBuilder().startObject();
                     builder.field("id", Integer.toString(counter));
-                    final String sValue = sValues[counter % sValues.length];
-                    final long lValue = lValues[counter % lValues.length];
+                    final String sValue = sValues[ThreadLocalRandom.current().nextInt(sValues.length)];
+                    final long lValue = lValues[ThreadLocalRandom.current().nextInt(lValues.length)];
                     builder.field("s_value", sValue);
                     builder.field("l_value", lValue);
                     builder.field("s_value_dv", sValue);
@@ -246,11 +246,9 @@ public class TermsAggregationSearchBenchmark {
         stats.add(terms("terms_facet_map_s", Method.FACET, "s_value", "map"));
         stats.add(terms("terms_facet_map_s_dv", Method.FACET, "s_value_dv", "map"));
         stats.add(terms("terms_agg_s", Method.AGGREGATION, "s_value", null));
-        stats.add(terms("terms_agg_s_global_ords_direct", Method.AGGREGATION, "s_value", "ordinals"));
-        stats.add(terms("terms_agg_s_global_ords_hash", Method.AGGREGATION, "s_value", "global_ordinals_hash"));
+        stats.add(terms("terms_agg_s_local_ordinals", Method.AGGREGATION, "s_value", "ordinals"));
         stats.add(terms("terms_agg_s_dv", Method.AGGREGATION, "s_value_dv", null));
-        stats.add(terms("terms_agg_s_dv_global_ords_direct", Method.AGGREGATION, "s_value_dv", "ordinals"));
-        stats.add(terms("terms_agg_s_dv_global_ords_hash", Method.AGGREGATION, "s_value_dv", "global_ordinals_hash"));
+        stats.add(terms("terms_agg_s_dv_local_ordinals", Method.AGGREGATION, "s_value_dv", "ordinals"));
         stats.add(terms("terms_agg_map_s", Method.AGGREGATION, "s_value", "map"));
         stats.add(terms("terms_agg_map_s_dv", Method.AGGREGATION, "s_value_dv", "map"));
         stats.add(terms("terms_facet_l", Method.FACET, "l_value", null));
@@ -262,11 +260,9 @@ public class TermsAggregationSearchBenchmark {
         stats.add(terms("terms_facet_map_sm", Method.FACET, "sm_value", "map"));
         stats.add(terms("terms_facet_map_sm_dv", Method.FACET, "sm_value_dv", "map"));
         stats.add(terms("terms_agg_sm", Method.AGGREGATION, "sm_value", null));
-        stats.add(terms("terms_agg_sm_global_ords_direct", Method.AGGREGATION, "sm_value", "ordinals"));
-        stats.add(terms("terms_agg_sm_global_ords_hash", Method.AGGREGATION, "sm_value", "global_ordinals_hash"));
+        stats.add(terms("terms_agg_sm_local_ordinals", Method.AGGREGATION, "sm_value", "ordinals"));
         stats.add(terms("terms_agg_sm_dv", Method.AGGREGATION, "sm_value_dv", null));
-        stats.add(terms("terms_agg_sm_global_ords_direct", Method.AGGREGATION, "sm_value_dv", "ordinals"));
-        stats.add(terms("terms_agg_sm_dv_global_ords_hash", Method.AGGREGATION, "sm_value_dv", "global_ordinals_hash"));
+        stats.add(terms("terms_agg_sm_dv_local_ordinals", Method.AGGREGATION, "sm_value_dv", "ordinals"));
         stats.add(terms("terms_agg_map_sm", Method.AGGREGATION, "sm_value", "map"));
         stats.add(terms("terms_agg_map_sm_dv", Method.AGGREGATION, "sm_value_dv", "map"));
         stats.add(terms("terms_facet_lm", Method.FACET, "lm_value", null));

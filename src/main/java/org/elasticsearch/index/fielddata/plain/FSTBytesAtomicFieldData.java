@@ -127,7 +127,7 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
     }
 
     @Override
-    public TermsEnum termsEnum() {
+    public TermsEnum getTermsEnum() {
         return new AtomicFieldDataWithOrdinalsTermsEnum(this);
     }
 

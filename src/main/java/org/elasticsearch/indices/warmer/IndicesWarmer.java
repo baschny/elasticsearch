@@ -62,18 +62,18 @@ public interface IndicesWarmer {
 
         private final Engine.Searcher newSearcher;
 
-        private final IndexReader fullIndexReader;
+        private final IndexReader indexReader;
 
         public WarmerContext(ShardId shardId, Engine.Searcher newSearcher) {
             this.shardId = shardId;
             this.newSearcher = newSearcher;
-            this.fullIndexReader = null;
+            this.indexReader = null;
         }
 
-        public WarmerContext(ShardId shardId, IndexReader fullIndexReader) {
+        public WarmerContext(ShardId shardId, IndexReader indexReader) {
             this.shardId = shardId;
             this.newSearcher = null;
-            this.fullIndexReader = fullIndexReader;
+            this.indexReader = indexReader;
         }
 
         public ShardId shardId() {
@@ -85,8 +85,8 @@ public interface IndicesWarmer {
             return newSearcher;
         }
 
-        public IndexReader fullIndexReader() {
-            return fullIndexReader;
+        public IndexReader indexReader() {
+            return indexReader;
         }
     }
 
