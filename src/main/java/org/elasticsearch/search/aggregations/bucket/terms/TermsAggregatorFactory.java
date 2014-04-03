@@ -61,7 +61,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             }
 
         },
-        GLOBAL_ORDINALS(new ParseField("global_ordinals_direct")) {
+        GLOBAL_ORDINALS(new ParseField("global_ordinals")) {
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
@@ -153,7 +153,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
     }
 
-    private boolean shouldUseOrdinals(Aggregator parent, ValuesSource valuesSource, AggregationContext context) {
+    private boolean shouldUseGlobalOrdinals(Aggregator parent, ValuesSource valuesSource, AggregationContext context) {
         // if there is a parent bucket aggregator the number of instances of this aggregator is going to be unbounded and most instances
         // may only aggregate few documents, so don't use ordinals
         if (hasParentBucketAggregator(parent)) {
@@ -210,8 +210,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             if (execution == null) {
                 // Let's try to use a good default
                 if ((valuesSource instanceof ValuesSource.Bytes.WithOrdinals)
-                        && shouldUseOrdinals(parent, valuesSource, aggregationContext)) {
-                    execution = ExecutionMode.ORDINALS;
+                        && shouldUseGlobalOrdinals(parent, valuesSource, aggregationContext)) {
+                    execution = ExecutionMode.GLOBAL_ORDINALS;
                 } else {
                     execution = ExecutionMode.MAP;
                 }

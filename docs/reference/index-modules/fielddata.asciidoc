@@ -125,6 +125,31 @@ field data format.
     Computes and stores field data data-structures on disk at indexing time.
 
 [float]
+==== Global ordinals
+
+coming[1.2.0]
+
+Global ordinals is a data-structure on top of field data, that maintains a
+incremental numbering for all the terms in field data in a lexicographic order.
+Each term has a unique number and the number of term 'A' is lower than the number
+of term 'B'. Global ordinals are only supported on string fields.
+
+Field data on string also has ordinals, which is a unique numbering for all terms
+in a particular segment and field. Global ordinals just build on top of this,
+by providing a mapping between the segment ordinals and the global ordinals.
+The latter being unique across the entire shard.
+
+Global ordinals can be beneficial in search features such as the terms aggregator
+to improve the execution time. Search features can instead of using the actual
+terms, can use these unique numbers which improves the performance.
+
+Global ordinals are build based on the field data entries for each segment
+on a shard. So per field and per shard there is one global ordinal instance.
+Unlike field data global ordinals need to rebuild in its entirety, once new segments
+become visible during a refresh. Building or rebuilding global ordinals is relatively
+cheap, since its source, field data is in memory all ready.
+
+[float]
 === Fielddata loading
 
 By default, field data is loaded lazily, ie. the first time that a query that
@@ -146,6 +171,23 @@ It is possible to force field data to be loaded and cached eagerly through the
     }
 }
 --------------------------------------------------
+
+Global ordinals can also be eagerly loaded:
+
+[source,js]
+--------------------------------------------------
+{
+    category: {
+        type:      "string",
+        fielddata: {
+            loading: "eager_global_ordinals"
+        }
+    }
+}
+--------------------------------------------------
+
+With the above setting both field data and global ordinals for a specific field
+are eagerly loaded.
 
 [float]
 ==== Disabling field data loading

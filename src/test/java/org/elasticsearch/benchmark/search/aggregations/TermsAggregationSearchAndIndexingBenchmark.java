@@ -162,8 +162,8 @@ public class TermsAggregationSearchAndIndexingBenchmark {
         List<TestRun> testRuns = new ArrayList<>();
         testRuns.add(new TestRun("Regular field ordinals", "eager", "lazy", "s_value", "ordinals"));
         testRuns.add(new TestRun("Docvalues field ordinals", "lazy", "eager", "s_value_dv", "ordinals"));
-        testRuns.add(new TestRun("Regular field global ordinals", "eager_global_ordinals", "lazy", "s_value", "global_ordinals_direct"));
-        testRuns.add(new TestRun("Docvalues field global", "lazy", "eager_global_ordinals", "s_value_dv", "global_ordinals_direct"));
+        testRuns.add(new TestRun("Regular field global ordinals", "eager_global_ordinals", "lazy", "s_value", "global_ordinals"));
+        testRuns.add(new TestRun("Docvalues field global", "lazy", "eager_global_ordinals", "s_value_dv", "global_ordinals"));
 
         List<TestResult> testResults = new ArrayList<>();
         for (TestRun testRun : testRuns) {

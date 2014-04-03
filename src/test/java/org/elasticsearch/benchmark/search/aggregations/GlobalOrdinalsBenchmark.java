@@ -160,14 +160,14 @@ public class GlobalOrdinalsBenchmark {
             for (int fieldSuffix = FIELD_START; fieldSuffix <= FIELD_LIMIT; fieldSuffix <<= 1) {
                 String fieldName = "field_" + fieldSuffix;
                 String name = threshold + "-" + fieldName;
-                stats.add(terms(name, fieldName, "global_ordinals_direct"));
+                stats.add(terms(name, fieldName, "global_ordinals"));
             }
         }
 
         for (int fieldSuffix = FIELD_START; fieldSuffix <= FIELD_LIMIT; fieldSuffix <<= 1) {
             String fieldName = "field_" + fieldSuffix;
             String name = "terms-aggs-no-global-ordinals-" + fieldName;
-            stats.add(terms(name, fieldName, null));
+            stats.add(terms(name, fieldName, "ordinals"));
         }
 
         System.out.println("------------------ SUMMARY ----------------------------------------------");
