@@ -261,10 +261,10 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
             // unnecessary.
 
             if (maxOrd <= threshold) {
-                // Rebuilding from MonotonicAppendingLongBuffer to GrowableWriter is fast
+                // Rebuilding from MonotonicAppendingLongBuffer to PackedInts.Mutable is fast
                 PackedInts.Mutable[] newSegmentOrdToGlobalOrdDeltas = new PackedInts.Mutable[numSegments];
                 for (int i = 0; i < segmentOrdToGlobalOrdDeltas.length; i++) {
-                    newSegmentOrdToGlobalOrdDeltas[i] = PackedInts.getMutable((int) segmentOrdToGlobalOrdDeltas[i].size(), (int) maxOrd, acceptableOverheadRatio);
+                    newSegmentOrdToGlobalOrdDeltas[i] = PackedInts.getMutable((int) segmentOrdToGlobalOrdDeltas[i].size(), PackedInts.bitsRequired(maxOrd), acceptableOverheadRatio);
                 }
 
                 for (int readerIndex = 0; readerIndex < segmentOrdToGlobalOrdDeltas.length; readerIndex++) {

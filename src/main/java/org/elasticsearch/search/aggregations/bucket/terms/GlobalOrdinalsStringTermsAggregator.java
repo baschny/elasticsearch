@@ -108,9 +108,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             if (spare == null) {
                 spare = new StringTerms.Bucket(new BytesRef(), 0, null);
             }
-            copy(globalValues.getValueByOrd(termOrd), spare.termBytes);
-            spare.docCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
             spare.bucketOrd = bucketOrd;
+            spare.docCount = bucketDocCount;
+            copy(globalValues.getValueByOrd(termOrd), spare.termBytes);
             spare = (StringTerms.Bucket) ordered.insertWithOverflow(spare);
         }
 
