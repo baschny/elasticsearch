@@ -95,8 +95,13 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             return buildEmptyAggregation();
         }
 
-        final int size = (int) Math.min(maxBucketOrd(), shardSize);
-
+        final int size;
+        if (minDocCount == 0) {
+            // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns
+            size = shardSize;
+        } else {
+            size = (int) Math.min(maxBucketOrd(), shardSize);
+        }
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
         StringTerms.Bucket spare = null;
         for (long termOrd = Ordinals.MIN_ORDINAL; termOrd < globalOrdinals.getMaxOrd(); ++termOrd) {
