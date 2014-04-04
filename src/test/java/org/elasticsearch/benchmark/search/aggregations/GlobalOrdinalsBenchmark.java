@@ -61,6 +61,7 @@ public class GlobalOrdinalsBenchmark {
     private static final int QUERY_COUNT = 100;
     private static final int FIELD_START = 1;
     private static final int FIELD_LIMIT = 1 << 22;
+    private static final boolean USE_DOC_VALUES = false;
 
     static long COUNT = SizeValue.parseSizeValue("5m").singles();
     static InternalNode node;
@@ -86,7 +87,7 @@ public class GlobalOrdinalsBenchmark {
         client = node.client();
 
         try {
-            client.admin().indices().prepareCreate("test")
+            client.admin().indices().prepareCreate(INDEX_NAME)
                     .addMapping(TYPE_NAME, jsonBuilder().startObject().startObject(TYPE_NAME)
                             .startArray("dynamic_templates")
                                 .startObject()
@@ -160,6 +161,10 @@ public class GlobalOrdinalsBenchmark {
             for (int fieldSuffix = FIELD_START; fieldSuffix <= FIELD_LIMIT; fieldSuffix <<= 1) {
                 String fieldName = "field_" + fieldSuffix;
                 String name = threshold + "-" + fieldName;
+                if (USE_DOC_VALUES) {
+                    fieldName = fieldName + ".doc_values";
+                    name = name + "_doc_values"; // can't have . in agg name
+                }
                 stats.add(terms(name, fieldName, "global_ordinals"));
             }
         }
@@ -167,6 +172,10 @@ public class GlobalOrdinalsBenchmark {
         for (int fieldSuffix = FIELD_START; fieldSuffix <= FIELD_LIMIT; fieldSuffix <<= 1) {
             String fieldName = "field_" + fieldSuffix;
             String name = "terms-aggs-no-global-ordinals-" + fieldName;
+            if (USE_DOC_VALUES) {
+                fieldName = fieldName + ".doc_values";
+                name = name + "_doc_values"; // can't have . in agg name
+            }
             stats.add(terms(name, fieldName, "ordinals"));
         }
 
