@@ -540,4 +540,34 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         }
         assertThat(size, equalTo(3));
     }
+
+    @Test
+    public void testGlobalOrdinalsGetRemovedOnceIndexReaderCloses() throws Exception {
+        fillExtendedMvSet();
+        refreshReader();
+        FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("global_ordinals", "fixed"));
+        IndexFieldData.WithOrdinals ifd = getForField(fieldDataType, "value");
+        IndexFieldData.WithOrdinals globalOrdinals = ifd.loadGlobal(topLevelReader);
+        assertThat(ifd.loadGlobal(topLevelReader), sameInstance(globalOrdinals));
+        // 3 b/c 1 segment level caches and 1 top level cache
+        assertThat(indicesFieldDataCache.getCache().size(), equalTo(4l));
+
+        IndexFieldData.WithOrdinals cachedInstace = null;
+        for (RamUsage ramUsage : indicesFieldDataCache.getCache().asMap().values()) {
+            if (ramUsage instanceof IndexFieldData.WithOrdinals) {
+                cachedInstace = (IndexFieldData.WithOrdinals) ramUsage;
+                break;
+            }
+        }
+        assertThat(cachedInstace, sameInstance(globalOrdinals));
+        topLevelReader.close();
+        // Now only 3 segment level entries, only the toplevel reader has been closed, but the segment readers are still used by IW
+        assertThat(indicesFieldDataCache.getCache().size(), equalTo(3l));
+
+        refreshReader();
+        assertThat(ifd.loadGlobal(topLevelReader), not(sameInstance(globalOrdinals)));
+
+        ifdService.clear();
+        assertThat(indicesFieldDataCache.getCache().size(), equalTo(0l));
+    }
 }

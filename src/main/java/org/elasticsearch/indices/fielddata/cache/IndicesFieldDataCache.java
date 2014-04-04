@@ -79,6 +79,10 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         return new IndexFieldCache(cache, indicesFieldDataCacheListener, indexService, index, fieldNames, fieldDataType);
     }
 
+    public Cache<Key, RamUsage> getCache() {
+        return cache;
+    }
+
     @Override
     public void onRemoval(RemovalNotification<Key, RamUsage> notification) {
         Key key = notification.getKey();

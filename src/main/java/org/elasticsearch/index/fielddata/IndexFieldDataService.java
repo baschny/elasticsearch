@@ -38,10 +38,9 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
@@ -134,6 +133,11 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     // public for testing
     public IndexFieldDataService(Index index, CircuitBreakerService circuitBreakerService) {
         this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, new IndicesFieldDataCache(ImmutableSettings.Builder.EMPTY_SETTINGS, new IndicesFieldDataCacheListener(circuitBreakerService)), circuitBreakerService, new IndicesFieldDataCacheListener(circuitBreakerService));
+    }
+
+    // public for testing
+    public IndexFieldDataService(Index index, CircuitBreakerService circuitBreakerService, IndicesFieldDataCache indicesFieldDataCache) {
+        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, indicesFieldDataCache, circuitBreakerService, new IndicesFieldDataCacheListener(circuitBreakerService));
     }
 
     @Inject
