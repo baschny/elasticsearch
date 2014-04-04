@@ -769,7 +769,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     if (fieldDataType == null) {
                         continue;
                     }
-                    if (fieldDataType.getLoading() != Loading.EAGER) {
+                    if (fieldDataType.getLoading() == Loading.LAZY) {
                         continue;
                     }
 

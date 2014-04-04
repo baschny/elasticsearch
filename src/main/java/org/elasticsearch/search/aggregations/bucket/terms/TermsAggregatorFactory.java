@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.support.format.ValueParser;
 public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public enum ExecutionMode {
+
         MAP(new ParseField("map")) {
 
             @Override
@@ -43,6 +44,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
                     AggregationContext aggregationContext, Aggregator parent) {
                 return new StringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
+            }
+
+            @Override
+            boolean needsGlobalOrdinals() {
+                return false;
             }
 
         },
@@ -58,6 +64,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 return new StringTermsAggregator.WithOrdinals(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
             }
 
+            @Override
+            boolean needsGlobalOrdinals() {
+                return false;
+            }
+
         },
         GLOBAL_ORDINALS(new ParseField("global_ordinals")) {
 
@@ -69,6 +80,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
                 }
                 return new GlobalOrdinalsStringTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+            }
+
+            @Override
+            boolean needsGlobalOrdinals() {
+                return true;
             }
 
         },
@@ -84,6 +100,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 return new GlobalOrdinalsStringTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
             }
 
+            @Override
+            boolean needsGlobalOrdinals() {
+                return true;
+            }
         };
 
         public static ExecutionMode fromString(String value) {
@@ -104,6 +124,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         abstract Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                 InternalOrder order, int requiredSize, int shardSize, long minDocCount,
                 IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent);
+
+        abstract boolean needsGlobalOrdinals();
 
         @Override
         public String toString() {
@@ -151,16 +173,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
     }
 
-    private boolean shouldUseGlobalOrdinals(Aggregator parent, ValuesSource valuesSource, AggregationContext context) {
-        // if there is a parent bucket aggregator the number of instances of this aggregator is going to be unbounded and most instances
-        // may only aggregate few documents, so don't use ordinals
-        if (hasParentBucketAggregator(parent)) {
-            return false;
-        }
-
-        return true;
-    }
-
     @Override
     protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
         long estimatedBucketCount = valuesSource.metaData().maxAtomicUniqueValuesCount();
@@ -190,20 +202,19 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 execution = ExecutionMode.MAP;
             }
 
+            // Let's try to use a good default
             if (execution == null) {
-                // Let's try to use a good default
-                if ((valuesSource instanceof ValuesSource.Bytes.WithOrdinals)
-                        && shouldUseGlobalOrdinals(parent, valuesSource, aggregationContext)) {
-                    execution = ExecutionMode.GLOBAL_ORDINALS;
+                // if there is a parent bucket aggregator the number of instances of this aggregator is going
+                // to be unbounded and most instances may only aggregate few documents, so use hashed based
+                // global ordinals to keep the bucket ords dense.
+                if (hasParentBucketAggregator(parent)) {
+                    execution = ExecutionMode.GLOBAL_ORDINALS_HASH;
                 } else {
-                    execution = ExecutionMode.MAP;
+                    execution = ExecutionMode.GLOBAL_ORDINALS;
                 }
             }
             assert execution != null;
-            if (execution == ExecutionMode.GLOBAL_ORDINALS || execution == ExecutionMode.GLOBAL_ORDINALS_HASH) {
-                valuesSource.setNeedsGlobalOrdinals(true);
-            }
-
+            valuesSource.setNeedsGlobalOrdinals(execution.needsGlobalOrdinals());
             return execution.create(name, factories, valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
         }
 

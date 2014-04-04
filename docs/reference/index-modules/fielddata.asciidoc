@@ -141,7 +141,7 @@ The latter being unique across the entire shard.
 
 Global ordinals can be beneficial in search features that use segment ordinals already
 such as the terms aggregator to improve the execution time. Often these search features
-need to need to merge the segment ordinal results to a cross segment terms result. With
+need to merge the segment ordinal results to a cross segment terms result. With
 global ordinals this mapping happens during field data load time instead of during each
 query execution. With global ordinals search features only need to resolve the actual
 term when building the (shard) response, but during the execution there is no need
@@ -150,7 +150,7 @@ sufficient and improves the execution time.
 
 Global ordinals for a specified field are tied to all the segments of a shard (Lucene index),
 which is different than for field data for a specific field which is tied to a single segment.
-For this reason global ordinals need to be rebuild in its entirety once new segments
+For this reason global ordinals need to be rebuilt in its entirety once new segments
 become visible. This one time cost would happen anyway without global ordinals, but
 then it would happen for each search execution instead!
 

@@ -22,8 +22,6 @@ import com.google.common.base.Strings;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -67,9 +65,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        prepareCreate("idx")
-                .setSettings(ImmutableSettings.builder().put(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_INDEX_SETTING_KEY, randomIntBetween(1, 100)))
-                .get();
+        createIndex("idx");
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             builders.add(client().prepareIndex("idx", "type").setSource(jsonBuilder()

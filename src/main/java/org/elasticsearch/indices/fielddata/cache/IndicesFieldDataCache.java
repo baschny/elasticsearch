@@ -118,6 +118,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         final FieldMapper.Names fieldNames;
         final FieldDataType fieldDataType;
         private final Cache<Key, RamUsage> cache;
+
         IndexFieldCache(final Cache<Key, RamUsage> cache, IndicesFieldDataCacheListener indicesFieldDataCacheListener, IndexService indexService, Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType) {
             this.indexService = indexService;
             this.index = index;
