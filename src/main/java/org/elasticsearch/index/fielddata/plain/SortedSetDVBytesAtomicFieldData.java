@@ -20,7 +20,6 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.TermsEnum;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
@@ -48,8 +47,4 @@ public final class SortedSetDVBytesAtomicFieldData extends SortedSetDVAtomicFiel
         return new ScriptDocValues.Strings(getBytesValues(false));
     }
 
-    @Override
-    public TermsEnum getTermsEnum() {
-        return new AtomicFieldDataWithOrdinalsTermsEnum(this);
-    }
 }

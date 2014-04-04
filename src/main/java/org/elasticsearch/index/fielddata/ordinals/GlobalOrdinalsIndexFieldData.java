@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.fielddata.ordinals;
 
-import com.carrotsearch.hppc.IntObjectOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.TermsEnum;
@@ -130,27 +129,30 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
             BytesValues.WithOrdinals values = afd.getBytesValues(false);
             Ordinals.Docs segmentOrdinals = values.ordinals();
             Ordinals.Docs globalOrdinals = segmentOrdToGlobalOrdLookup.globalOrdinals(segmentOrdinals);
+
+            final BytesValues.WithOrdinals[] bytesValues = new BytesValues.WithOrdinals[atomicReaders.length];
+            for (int i = 0; i < bytesValues.length; i++) {
+                bytesValues[i] = atomicReaders[i].afd.getBytesValues(false);
+            }
             return new BytesValues.WithOrdinals(globalOrdinals) {
 
                 int readerIndex;
-                final IntObjectOpenHashMap<BytesValues.WithOrdinals> bytesValuesCache = new IntObjectOpenHashMap<>();
 
                 @Override
                 public BytesRef getValueByOrd(long globalOrd) {
                     final long segmentOrd = globalOrd - globalOrdToFirstSegmentDelta.get(globalOrd);
                     readerIndex = (int) globalOrdToFirstSegment.get(globalOrd);
-                    if (bytesValuesCache.containsKey(readerIndex)) {
-                        return bytesValuesCache.lget().getValueByOrd(segmentOrd);
-                    } else {
-                        BytesValues.WithOrdinals k = atomicReaders[readerIndex].afd.getBytesValues(false);
-                        bytesValuesCache.put(readerIndex, k);
-                        return k.getValueByOrd(segmentOrd);
-                    }
+                    return bytesValues[readerIndex].getValueByOrd(segmentOrd);
                 }
 
                 @Override
                 public BytesRef copyShared() {
-                    return bytesValuesCache.get(readerIndex).copyShared();
+                    return bytesValues[readerIndex].copyShared();
+                }
+
+                @Override
+                public int currentValueHash() {
+                    return bytesValues[readerIndex].currentValueHash();
                 }
             };
         }

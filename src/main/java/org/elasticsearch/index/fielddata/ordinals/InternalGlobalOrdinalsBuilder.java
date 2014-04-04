@@ -49,6 +49,7 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
 
     public final static int ORDINAL_MAPPING_THRESHOLD_DEFAULT = 2048;
     public final static String ORDINAL_MAPPING_THRESHOLD_KEY = "global_ordinals_compress_threshold";
+    public final static String ORDINAL_MAPPING_THRESHOLD_INDEX_SETTING_KEY = "index." + ORDINAL_MAPPING_THRESHOLD_KEY;
 
     public InternalGlobalOrdinalsBuilder(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
@@ -69,7 +70,8 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
         globalOrdToFirstSegmentDelta.add(0);
 
         FieldDataType fieldDataType = indexFieldData.getFieldDataType();
-        int threshold = fieldDataType.getSettings().getAsInt(ORDINAL_MAPPING_THRESHOLD_KEY, ORDINAL_MAPPING_THRESHOLD_DEFAULT);
+        int defaultThreshold = settings.getAsInt(ORDINAL_MAPPING_THRESHOLD_INDEX_SETTING_KEY, ORDINAL_MAPPING_THRESHOLD_DEFAULT);
+        int threshold = fieldDataType.getSettings().getAsInt(ORDINAL_MAPPING_THRESHOLD_KEY, defaultThreshold);
         OrdinalMappingSourceBuilder ordinalMappingBuilder = new OrdinalMappingSourceBuilder(
                 indexReader.leaves().size(), acceptableOverheadRatio, threshold
         );

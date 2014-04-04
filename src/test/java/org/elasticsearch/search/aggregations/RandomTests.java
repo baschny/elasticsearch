@@ -26,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder;
 import org.elasticsearch.index.query.FilterBuilders;
@@ -152,24 +153,32 @@ public class RandomTests extends ElasticsearchIntegrationTest {
 
         final IntOpenHashSet valuesSet = new IntOpenHashSet();
         immutableCluster().wipeIndices("idx");
-        prepareCreate("idx").addMapping("type", jsonBuilder().startObject()
-              .startObject("type")
-                .startObject("properties")
-                  .startObject("string_values")
-                    .field("type", "string")
-                    .field("index", "not_analyzed")
-                    .startObject("fielddata")
-                        .field(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_KEY, randomIntBetween(1, maxNumTerms))
-                    .endObject()
-                  .endObject()
-                  .startObject("long_values")
-                    .field("type", "long")
-                  .endObject()
-                  .startObject("double_values")
-                    .field("type", "double")
-                  .endObject()
-                .endObject()
-              .endObject()).execute().actionGet();
+        prepareCreate("idx")
+                .setSettings(ImmutableSettings.builder().put(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_INDEX_SETTING_KEY, randomIntBetween(1, maxNumTerms)))
+                .addMapping("type", jsonBuilder().startObject()
+                        .startObject("type")
+                        .startObject("properties")
+                        .startObject("string_values")
+                        .field("type", "string")
+                        .field("index", "not_analyzed")
+                        .startObject("fields")
+                            .startObject("doc_values")
+                                .field("type", "string")
+                                .field("index", "no")
+                                .startObject("fielddata")
+                                    .field("format", "doc_values")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                        .endObject()
+                        .startObject("long_values")
+                        .field("type", "long")
+                        .endObject()
+                        .startObject("double_values")
+                        .field("type", "double")
+                        .endObject()
+                        .endObject()
+                        .endObject()).execute().actionGet();
 
         List<IndexRequestBuilder> indexingRequests = Lists.newArrayList();
         for (int i = 0; i < numDocs; ++i) {
@@ -201,7 +210,6 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenient()).execute().get());
 
         TermsAggregatorFactory.ExecutionMode[] globalOrdinalModes = new TermsAggregatorFactory.ExecutionMode[]{
-                TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS,
                 TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS_HASH,
                 TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS
         };
@@ -212,6 +220,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
                 .addAggregation(terms("string_map").field("string_values").executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString()).size(maxNumTerms).subAggregation(stats("stats").field("num")))
                 .addAggregation(terms("string_ordinals").field("string_values").executionHint(TermsAggregatorFactory.ExecutionMode.ORDINALS.toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
                 .addAggregation(terms("string_global_ordinals").field("string_values").executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
+                .addAggregation(terms("string_global_ordinals_doc_values").field("string_values.doc_values").executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
                 .execute().actionGet();
         assertAllSuccessful(resp);
         assertEquals(numDocs, resp.getHits().getTotalHits());

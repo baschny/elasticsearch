@@ -22,6 +22,7 @@ import com.google.common.base.Strings;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -67,20 +68,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         prepareCreate("idx")
-                .addMapping("_default_", jsonBuilder().startObject().startObject("_default_").startObject("_properties")
-                        .startObject(SINGLE_VALUED_FIELD_NAME)
-                        .field("type", "string")
-                        .startObject("fielddata")
-                        .field(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_KEY, randomIntBetween(1, 100))
-                        .endObject()
-                        .endObject()
-                        .startObject(MULTI_VALUED_FIELD_NAME)
-                        .field("type", "string")
-                        .startObject("fielddata")
-                        .field(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_KEY, randomIntBetween(1, 100))
-                        .endObject()
-                        .endObject()
-                        .endObject().endObject().endObject())
+                .setSettings(ImmutableSettings.builder().put(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_INDEX_SETTING_KEY, randomIntBetween(1, 100)))
                 .get();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
